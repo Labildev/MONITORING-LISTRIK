@@ -179,13 +179,58 @@
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.5rem; }
             .hero p { font-size: 1rem; }
+            .profile-card { flex-direction: column; text-align: center; }
+            .profile-info strong { width: auto; margin-right: 10px; }
+        }
+
+        /* Profile Section */
+        .profile-section {
+            padding: 4rem 5%;
+            display: flex;
+            justify-content: center;
+        }
+        .profile-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            max-width: 800px;
+            width: 100%;
+        }
+        .profile-img {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid var(--primary);
+        }
+        .profile-info h3 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        .profile-info p {
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+        .profile-info strong {
+            color: white;
+            display: inline-block;
+            width: 90px;
         }
     </style>
 </head>
 <body>
 
     <nav>
-        <div class="logo">⚡ Izaz <span>Power</span></div>
+        <div class="logo">
+            <img src="assets/img/Logo_Politeknik_Negeri_Lhokseumawe.png" alt="Logo Poltek" style="height: 40px; margin-right: 8px;">
+            ⚡ Izaz <span>Power</span>
+        </div>
         <a href="login.php" class="btn-login">Login Admin</a>
     </nav>
 
@@ -213,6 +258,20 @@
             <div class="feature-icon">🔒</div>
             <h3>Secure & Private</h3>
             <p>Dashboard dan kontrol hanya dapat diakses oleh administrator resmi melalui sistem autentikasi sesi yang terenkripsi.</p>
+        </div>
+    </div>
+
+    <div class="profile-section">
+        <div class="profile-card">
+            <img src="assets/img/Poto Izaz Abdul.jpeg" alt="Izaz Abdul" class="profile-img">
+            <div class="profile-info">
+                <h3>Profil Pengembang</h3>
+                <p><strong>NAMA</strong> : IZAZ ABDUL</p>
+                <p><strong>NIM</strong> : 2022203020007</p>
+                <p><strong>ALAMAT</strong> : BIREUEN</p>
+                <p><strong>JURUSAN</strong> : TEKNIK ELEKTRO</p>
+                <p><strong>PRODI</strong> : TEKNOLOGI REKAYASA JARINGAN TELEKOMUNIKASI (TRJT)</p>
+            </div>
         </div>
     </div>
 

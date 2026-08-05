@@ -23,6 +23,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 
     <nav class="navbar">
         <div class="navbar-brand">
+            <img src="assets/img/Logo_Politeknik_Negeri_Lhokseumawe.png" alt="Logo Poltek" style="height: 36px; margin-right: 8px;">
             ⚡ Izaz Power Monitor
         </div>
         <div class="navbar-menu">

@@ -69,6 +69,7 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 </head>
 <body>
     <div class="login-card">
+        <img src="assets/img/Logo_Politeknik_Negeri_Lhokseumawe.png" alt="Logo Poltek" style="height: 60px; margin-bottom: 1rem;">
         <h2>Izaz Power Monitor</h2>
         <p>Login ke Panel Admin</p>
         <div class="error-msg" id="errorMsg"></div>
