@@ -1,70 +1,71 @@
-# 🚀 Panduan Deployment Sistem Monitoring Listrik (Khusus Niagahoster / hPanel)
+# 🚀 Panduan Deployment Sistem Monitoring Listrik (PHP Native)
 
-Dokumen ini berisi panduan lengkap untuk meng-online-kan (deploy) project **Monitoring Listrik (Full-Stack IoT)** secara spesifik ke layanan **Niagahoster / Hostinger (hPanel)** menggunakan fitur **Import dari GitHub**.
+Dokumen ini berisi panduan lengkap untuk meng-online-kan (deploy) project **Monitoring Listrik** berbasis **PHP Native** ke layanan **Shared Hosting (cPanel / hPanel)**.
 
 ---
 
 ## 📡 1. Konsep Alur Komunikasi (Wajib Paham)
 
-Karena layanan web hosting seperti Niagahoster memiliki pelindung keamanan (_firewall_) yang ketat, mereka **memblokir port MQTT (1883)** dari luar. Akibatnya, alat ESP32 Anda tidak bisa mengirim data langsung menembus masuk ke Niagahoster.
+Agar website dapat menerima data *real-time* dan tetap bisa menyimpan log tanpa membebani *shared hosting*, arsitekturnya dibuat sebagai berikut:
 
-**Solusinya (Jalan Pintas):**
-Sistem ini menggunakan **HiveMQ** sebagai "Kantor Pos Pusat" penengah.
-
-1. **ESP32** mengirim data listrik ke server publik `broker.hivemq.com`.
-2. **Backend Node.js** (yang sudah hidup di Niagahoster) diam-diam memantau HiveMQ.
-3. Begitu paket data dari ESP32 masuk ke HiveMQ, **Backend langsung menangkapnya**, menyimpannya ke _Database_, dan menampilkannya di _Dashboard_ Anda.
-
-_Catatan: Jika Anda menjalankan aplikasi ini di laptop secara lokal (`npm run dev:full`), sistem otomatis kembali menggunakan MQTT Broker Lokal (Aedes) dan tidak memakai HiveMQ._
+1. **ESP32** mengirim data listrik ke broker MQTT publik (`broker.hivemq.com`). Ini berfungsi agar dashboard (frontend) bisa memperbarui layar tanpa jeda (_real-time_).
+2. **ESP32** JUGA mengirim HTTP POST berisi data sensor ke endpoint PHP Anda (misal: `http://domainanda.com/api/log_data.php`).
+3. **PHP** menerima POST tersebut dan menyimpannya secara rapi ke database **MySQL**.
 
 ---
 
-## 🛠 2. Konfigurasi Hardware (ESP32)
+## ☁️ 2. Deploy ke Shared Hosting (cPanel / hPanel)
 
-Agar ESP32 bisa menitipkan pesan ke HiveMQ, Anda harus mengubah 1 baris kode di **Arduino IDE (`esp32/main.ino`)** sebelum Anda mempresentasikan/menjalankan alatnya.
+### Langkah 1: Persiapan File ZIP
+1. Masuk ke folder proyek Anda di laptop.
+2. *Block* semua file dan folder (kecuali folder `esp32` dan `.git`).
+3. Klik kanan dan jadikan satu file `.zip`.
 
-1. Buka file kode Arduino Anda.
-2. Cari variabel konfigurasi MQTT server.
-3. Ubah alamat IP laptop Anda menjadi alamat broker HiveMQ:
+### Langkah 2: Upload ke Hosting
+1. Login ke panel hosting Anda (cPanel / hPanel).
+2. Buka **File Manager** ➔ buka folder `public_html`.
+3. Klik tombol **Upload**, lalu pilih file `.zip` yang tadi dibuat.
+4. Setelah ter-upload, **Extract** file zip tersebut di dalam `public_html`.
+
+### Langkah 3: Setup Database MySQL
+1. Di panel hosting, buka menu **MySQL Databases**.
+2. Buat database baru (contoh: `u123456_voltmonitor`).
+3. Buat User baru (contoh: `u123456_admin`) beserta password-nya.
+4. **Add User To Database** dan centang *All Privileges*.
+5. Buka menu **phpMyAdmin** di hosting Anda.
+6. Pilih database yang baru dibuat, lalu klik tab **Import**.
+7. Upload file `database.sql` dari proyek ini, lalu klik **Go**.
+
+### Langkah 4: Konfigurasi Koneksi PHP
+1. Kembali ke **File Manager** ➔ `public_html`.
+2. Edit file `koneksi.php`.
+3. Ubah bagian koneksi menyesuaikan database yang baru Anda buat:
+   ```php
+   $host = "localhost";
+   $user = "u123456_admin"; // Ganti dengan username MySQL hosting Anda
+   $pass = "password_rahasia"; // Ganti dengan password MySQL hosting Anda
+   $db   = "u123456_voltmonitor"; // Ganti dengan nama database hosting Anda
+   ```
+4. Simpan file.
+
+---
+
+## 🛠 3. Konfigurasi Hardware (ESP32)
+
+Agar ESP32 bisa menitipkan pesan ke database hosting Anda, Anda harus mengubah variabel *URL endpoint* di kode **Arduino IDE (`esp32/main/main.ino`)**.
+
+1. Buka file `esp32/main/main.ino`.
+2. Cari variabel konfigurasi PHP.
+3. Ubah alamat *localhost* menjadi alamat domain asli Anda:
 
 ```cpp
 // UBAH DARI (Mode Lokal):
-// const char* mqtt_server = "192.168.1.10";
+// const char* php_server_url = "http://localhost/MONITORING-LISTRIK/api/log_data.php";
 
-// MENJADI (Mode Online/Skripsi):
-const char* mqtt_server = "broker.hivemq.com";
+// MENJADI (Mode Online):
+const char* php_server_url = "http://www.domainanda.com/api/log_data.php";
 ```
 
 4. _Upload_ ulang kode ke modul ESP32 Anda.
 
----
-
-## ☁️ 3. Deploy ke Niagahoster (Via hPanel Import GitHub)
-
-Pastikan semua kode terbaru di VS Code sudah Anda _Push_ ke repository GitHub Anda. Setelah itu, ikuti langkah berikut di halaman hPanel:
-
-### Isian Formulir "Periksa Pengaturan Build"
-
-Isi layar konfigurasi Niagahoster Anda secara persis seperti di bawah ini:
-
-1. **Preset framework**: Pilih `Other`
-2. **Branch**: Pilih `main`
-3. **Versi node**: Pilih `22.x` _(atau `20.x` jika tersedia)_
-4. **Root directory**: Biarkan `./`
-5. **Pengaturan build dan output**:
-   Klik tombol **Ubah**, lalu isi persis seperti ini:
-   - **Build command**: `npm run build`
-   - **Package manager**: `npm`
-   - **Direktori output**: _(Biarkan kosong, atau jika wajib diisi ketik `.`)_
-   - **Entry file**: `backend/server.js`
-     _(Penjelasan: Entry file adalah kunci utama agar Niagahoster tahu file mana yang harus dihidupkan 24 jam)._
-6. **Variabel environment**:
-   Klik tombol **Tambahkan**, lalu ketik:
-   - Kolom **Nama (Key)**: `NODE_ENV`
-   - Kolom **Nilai (Value)**: `production`
-     _(Penjelasan: Variabel ini yang memberi tahu Backend Anda untuk otomatis mencari data ke HiveMQ, bukan ke localhost)._
-7. Terakhir, klik tombol biru **Deploy**.
-
-Tunggu sekitar 3-5 menit sampai proses _build_ dan instalasi modul di server Niagahoster selesai.
-
-Jika proses sukses dan indikator sudah hijau, web _Dashboard_ Anda siap diakses (misalnya lewat `monitoringlistrik.tanggapdata.com`) dan akan langsung terhubung secara _real-time_ dengan alat ESP32 Anda melalui HiveMQ! 🚀
+Selesai! Website Monitoring Listrik Anda sekarang sudah online dan siap digunakan 🚀.

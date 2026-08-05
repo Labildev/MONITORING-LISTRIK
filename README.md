@@ -1,8 +1,8 @@
-# VoltMonitor — IoT Power Analytics & Control Platform
+# Izaz Power Monitor — IoT Power Analytics & Control Platform (PHP Native)
 
-VoltMonitor adalah sistem pemantauan telemetri dan pengendalian beban listrik secara *real-time* berbasis Internet of Things (IoT). Platform ini mengintegrasikan mikrokontroler **ESP32**, sensor **PZEM-004T**, protokol komunikasi **MQTT**, backend **Node.js (Express & Socket.IO)**, serta antarmuka web modern berbahan **React (Vite)** berstandar *enterprise*.
+Izaz Power Monitor adalah sistem pemantauan telemetri dan pengendalian beban listrik secara *real-time* berbasis Internet of Things (IoT). Platform ini mengintegrasikan mikrokontroler **ESP32**, sensor **PZEM-004T**, protokol komunikasi **MQTT**, serta website berbasis **PHP Native** dan **MySQL**.
 
-Project ini dikelola menggunakan **NPM Workspaces (Monorepo)** untuk mempermudah eksekusi frontend dan backend dalam satu repositori.
+Aplikasi web ini sangat cocok untuk di-*deploy* di *Shared Hosting* konvensional (cPanel/Plesk) maupun dijalankan di localhost (XAMPP/Laragon).
 
 ---
 
@@ -11,80 +11,62 @@ Project ini dikelola menggunakan **NPM Workspaces (Monorepo)** untuk mempermudah
 ```text
 MONITORING-LISTRIK/
 ├── esp32/            # Firmware C++ (main.ino) untuk ESP32 (Arduino IDE)
-├── backend/          # Server Node.js (Express API, Socket.IO, SQLite3 DB, Seeder)
-├── frontend/         # Dashboard Web React (Vite, Recharts, Lucide Icons, Clean Design)
-├── simulator/        # Script simulasi telemetri MQTT untuk pengujian tanpa alat
-├── package.json      # Root configuration & NPM Workspaces scripts
+├── api/              # Kumpulan Endpoint API PHP (log_data.php, get_data.php, dll)
+├── assets/           # Folder penyimpanan CSS dan gambar
+├── database.sql      # Skema tabel database MySQL
+├── koneksi.php       # Konfigurasi koneksi database PDO
+├── index.php         # Halaman Dashboard Utama (Real-time MQTT & Chart.js)
+├── login.php         # Halaman Login Admin
 └── README.md         # Dokumentasi resmi proyek
 ```
 
 ---
 
-## Panduan Menjalankan Aplikasi
+## Panduan Instalasi dan Menjalankan Aplikasi
 
-### 1. Instalasi Dependensi
-Jalankan perintah ini pada folder utama (*root*) untuk memasang seluruh paket frontend dan backend sekaligus:
-```bash
-npm install
-```
+### 1. Persiapan Database MySQL
+1. Buat database baru di MySQL (misal: `izazmonitor`).
+2. Import file `database.sql` ke dalam database yang baru dibuat.
+3. Buka `koneksi.php` dan sesuaikan kredensial koneksi MySQL:
+   ```php
+   $host = "localhost";
+   $user = "root"; // username db anda
+   $pass = "";     // password db anda
+   $db   = "izazmonitor";
+   ```
 
-### 2. Inisialisasi Database & Seeder User
-Sebelum menjalankan server pertama kali, pastikan database diisi akun administrator:
-```bash
-# Inisialisasi user bawaan (admin / password)
-npm run seed -w backend
-```
-
-> **Kredensial Default Login:**
+> **Kredensial Default Login Admin:**
 > - **Username**: `admin`
 > - **Password**: `password`
 
-### 3. Menjalankan Aplikasi
-Jalankan backend dan frontend secara bersamaan dalam satu terminal:
-```bash
-npm run dev
-```
+### 2. Menjalankan Website (Localhost)
+1. Pindahkan folder `MONITORING-LISTRIK` ke dalam folder root web server lokal Anda (`htdocs` pada XAMPP atau `www` pada Laragon).
+2. Buka browser dan akses: `http://localhost/MONITORING-LISTRIK/`
 
-- **Frontend Web**: `http://localhost:5173` (di-proxy otomatis ke backend)
-- **Backend API**: `http://localhost:3001`
-
-### 4. Menjalankan dengan Simulator Telemetri
-Jika perangkat keras ESP32 belum terpasang, Anda dapat menguji data daya real-time dengan simulator:
-```bash
-npm run dev:full
-```
-
----
-
-## Daftar Perintah Maintenance & Scripts
-
-| Perintah | Deskripsi |
-| :--- | :--- |
-| `npm run dev` | Menjalankan Frontend & Backend secara bersamaan |
-| `npm run dev:full` | Menjalankan Frontend, Backend, dan Simulator MQTT |
-| `npm run backend` | Menjalankan Backend Express Server saja |
-| `npm run frontend` | Menjalankan Frontend Vite Server saja |
-| `npm run simulator` | Menjalankan script pengirim data dummy MQTT |
-| `npm run seed -w backend` | Mengisi ulang akun admin bawaan ke database |
-| `npm run reset -w backend` | Membersihkan riwayat data sensor tanpa menghapus user |
+### 3. Konfigurasi ESP32
+1. Buka `esp32/main/main.ino` menggunakan Arduino IDE.
+2. Pastikan library berikut sudah terinstal: `WiFi`, `PubSubClient`, `PZEM004Tv30`, `LiquidCrystal_I2C`, dan `HTTPClient`.
+3. Sesuaikan konfigurasi WiFi, MQTT, dan URL PHP Server:
+   ```cpp
+   const char* ssid     = "NAMA_WIFI_ANDA";
+   const char* password = "PASSWORD_WIFI_ANDA";
+   
+   const char* php_server_url = "http://localhost/MONITORING-LISTRIK/api/log_data.php"; // Ganti dengan URL domain hosting jika sudah online
+   ```
+4. Upload firmware ke ESP32.
 
 ---
 
 ## Skema Hardware & Pinout ESP32
 
-1. Buka `esp32/main.ino` di Arduino IDE.
-2. Library yang dibutuhkan: `WiFi`, `PubSubClient`, `PZEM004Tv30`, `LiquidCrystal_I2C`.
-3. Konfigurasi Wiring Hardware:
-   - **PZEM-004T (HardwareSerial2)**: TX PZEM ➔ GPIO 16 (RX2), RX PZEM ➔ GPIO 17 (TX2)
-   - **LCD I2C (20x4 / 16x2)**: SDA ➔ GPIO 21, SCL ➔ GPIO 22
-   - **Modul Relay (Active LOW)**: GPIO 25, 26, 27, 14
-4. Broker MQTT Public bawaan: `broker.hivemq.com` (Port `1883`).
+- **PZEM-004T (HardwareSerial2)**: TX PZEM ➔ GPIO 16 (RX2), RX PZEM ➔ GPIO 17 (TX2)
+- **LCD I2C (20x4 / 16x2)**: SDA ➔ GPIO 21, SCL ➔ GPIO 22
+- **Modul Relay (Active LOW)**: GPIO 25, 26, 27, 14
 
 ---
 
-## Stack Teknologi
-
-- **Hardware & Firmware**: ESP32, Sensor PZEM-004T v3.0, LCD I2C, Modul Relay.
-- **Komunikasi Data**: MQTT Protocol, Socket.IO WebSockets.
-- **Backend**: Node.js, Express.js, SQLite3, BCrypt.js Password Hashing.
-- **Frontend**: React.js, Vite, Recharts, Lucide Icons, Clean Industrial Design System (Inter & JetBrains Mono typography).
+## Arsitektur Data (Tanpa Node.js)
+Berbeda dengan versi sebelumnya yang menggunakan Node.js:
+1. **Real-time Web**: Frontend (Dashboard) terhubung *langsung* ke MQTT Broker (HiveMQ) via WebSocket Port 8000 dengan **Paho MQTT JavaScript**.
+2. **Kendali Relay**: Dashboard men-publish ke topik MQTT `labil_listrik_123/control/relayX`.
+3. **Penyimpanan Data (MySQL)**: ESP32 mengirim HTTP POST secara berkala ke endpoint `api/log_data.php` (sambil tetap mengirim publish MQTT agar dashboard bereaksi cepat tanpa delay).

@@ -17,6 +17,7 @@
 #include <PZEM004Tv30.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <HTTPClient.h>
 
 // --- Konfigurasi WiFi ---
 const char* ssid     = "NAMA_WIFI_ANDA";
@@ -25,10 +26,14 @@ const char* password = "PASSWORD_WIFI_ANDA";
 // --- Konfigurasi MQTT ---
 // Ganti dengan IP lokal komputer yang menjalankan server.js
 // Contoh: "192.168.1.15"
-const char* mqtt_server = "91.108.119.47";
+const char* mqtt_server = "broker.hivemq.com";
 const int   mqtt_port   = 1883;
 const char* topic_monitor        = "labil_listrik_123/monitor";
 const char* topic_control_prefix = "labil_listrik_123/control/relay";
+
+// --- Konfigurasi PHP ---
+// Ganti dengan URL file log_data.php di shared hosting Anda
+const char* php_server_url = "http://domain_anda.com/api/log_data.php?api_key=labil_secret_123";
 
 WiFiClient   espClient;
 PubSubClient client(espClient);
@@ -266,6 +271,26 @@ void loop() {
     Serial.print("Publish: ");
     Serial.println(payload);
     client.publish(topic_monitor, payload.c_str());
+
+    // --- Kirim Data ke PHP Server (MySQL) ---
+    if(WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      http.begin(php_server_url);
+      http.addHeader("Content-Type", "application/json");
+      
+      int httpResponseCode = http.POST(payload);
+      
+      if(httpResponseCode > 0){
+        Serial.print("HTTP POST response code: ");
+        Serial.println(httpResponseCode);
+      } else {
+        Serial.print("HTTP POST Error code: ");
+        Serial.println(httpResponseCode);
+      }
+      http.end();
+    } else {
+      Serial.println("WiFi Disconnected, cannot send HTTP POST");
+    }
 
     // Update LCD setiap 4 detik (bergantian halaman)
     if (now - lastLCD > 4000) {
