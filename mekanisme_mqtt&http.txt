@@ -1,0 +1,111 @@
+=========================================================================================
+            PENJELASAN MEKANISME PROTOKOL KOMUNIKASI (MQTT & HTTP)
+                  IZAZ POWER MONITOR - SMART IOT ENERGY PLATFORM
+=========================================================================================
+
+Dalam dunia Internet of Things (IoT), cara data dikirimkan sangat menentukan kualitas 
+sistem. Proyek "Izaz Power Monitor" mengadopsi pendekatan **Arsitektur Hybrid**, yaitu 
+menggabungkan dua protokol komunikasi yang berbeda di saat yang bersamaan: MQTT dan HTTP. 
+
+Penggabungan ini adalah solusi teknis yang brilian untuk mendapatkan kecepatan 
+"Real-Time" (layaknya sistem yang sangat mahal) sekaligus memiliki "Penyimpanan 
+Jangka Panjang" yang andal namun hemat biaya (karena bisa berjalan di Shared Hosting / 
+cPanel biasa).
+
+Berikut adalah bedah teknis dari masing-masing mekanisme:
+
+-----------------------------------------------------------------------------------------
+1. MEKANISME MQTT (Message Queuing Telemetry Transport)
+-----------------------------------------------------------------------------------------
+Fungsi Utama: Untuk Kecepatan, Monitoring Real-Time, dan Kendali Jarak Jauh (Remote Control).
+Karakteristik: Publish/Subscribe (PubSub), sangat ringan, koneksi terbuka terus (WebSockets).
+Pusat Lalu Lintas (Broker): broker.hivemq.com (Broker Publik / Pihak Ketiga)
+
+Cara Kerja MQTT di Proyek Ini:
+Konsep utama MQTT bukanlah pengiriman pesan secara langsung (bukan point-to-point), 
+melainkan menggunakan "Papan Pengumuman" yang disebut *Broker*. Pesan yang ditempel 
+di papan ini dikategorikan dalam "Topik" (Topic).
+
+A. ALUR MONITORING SENSOR (ESP32 -> WEBSITE)
+   1. Mikrokontroler ESP32 membaca data sensor kelistrikan setiap 5 detik.
+   2. ESP32 bertindak sebagai "Publisher". Ia mengirim (Publish) data tersebut ke 
+      Broker HiveMQ dengan menempelkan label Topik khusus: "labil_listrik_123/monitor".
+   3. Website Dashboard (yang sedang dibuka pengguna di browser) bertindak sebagai 
+      "Subscriber". Sejak halaman website dimuat, ia telah mendaftar (berlangganan) ke 
+      Topik yang sama.
+   4. Begitu Broker HiveMQ menerima data dari ESP32, ia SEKETIKA (tanpa jeda) memantulkan 
+      pesan tersebut ke Browser.
+   5. Javascript di Website membedah data tersebut lalu secara instan memperbarui 
+      angka (DOM Manipulation) dan menambahkan titik baru pada grafik Chart.js. 
+
+B. ALUR KENDALI BEBAN / RELAY (WEBSITE -> ESP32)
+   1. Saat pengguna menekan *toggle switch* (tombol on/off) di website, Website berubah 
+      peran menjadi "Publisher".
+   2. Website meneriakkan pesan "ON" atau "OFF" ke Broker dengan Topik khusus kendali, 
+      misal: "labil_listrik_123/control/relay1".
+   3. ESP32 di lokasi (yang berjaga 24 jam) bertindak sebagai "Subscriber" pada topik ini.
+   4. Broker meneruskan pesan tersebut ke ESP32. ESP32 memproses pesan, dan mengalihkan 
+      arus pada modul relay fisik. Lampu / Beban langsung menyala atau mati.
+
+KEUNGGULAN MQTT PADA SISTEM INI:
+Tidak ada istilah "Tarik Data" secara paksa (Polling). Koneksi *WebSocket* ditahan agar 
+selalu terbuka dua arah. Hal ini membuat kendali alat dan pembaruan grafik terasa 
+sangat gesit (Zero Latency), serta SAMA SEKALI tidak membebani server web hosting Anda 
+sendiri, karena lalu lintas padat *real-time* ini ditanggung oleh server raksasa HiveMQ.
+
+-----------------------------------------------------------------------------------------
+2. MEKANISME HTTP (Hypertext Transfer Protocol)
+-----------------------------------------------------------------------------------------
+Fungsi Utama: Untuk Pencatatan Permanen (Data Logging) ke dalam Database (MySQL).
+Karakteristik: Request/Response, terputus (buka-kirim-tutup), standar baku internet, 
+kompatibel di semua server.
+Target Server: Server Web Hosting Mandiri (Misal: Hostinger, Niagahoster, Rumahweb, dll).
+
+Cara Kerja HTTP di Proyek Ini:
+Berbeda dengan MQTT yang pesannya "menguap" dari jaringan setelah dikirim, HTTP digunakan 
+untuk menanamkan data secara permanen ke dalam "Buku Catatan" berupa Database MySQL.
+
+ALUR PENCATATAN DATA (ESP32 -> PHP SERVER)
+1. Setiap 5 detik, tepat setelah mengirim data via MQTT, ESP32 membuka koneksi baru 
+   untuk melakukan *HTTP POST Request* (Sistemnya mirip seperti saat Anda mengisi 
+   formulir pendaftaran di sebuah website lalu menekan tombol "Submit").
+2. ESP32 menembak URL (Endpoint API) milik Anda: 
+   `http://domain_anda.com/api/log_data.php`.
+   Dalam tembakan ini, ESP32 turut menyertakan parameter keamanan: 
+   `api_key=labil_secret_123`.
+3. ESP32 mengirim "body payload" (isi paket) berformat JSON yang berisi metrik lengkap 
+   (Tegangan, Arus, Daya, Energi, Status Relay).
+4. Skrip PHP (`log_data.php`) di server hosting Anda menerima kedatangan *Request* ini. 
+   PHP bertugas ganda: sebagai penjaga keamanan dan pencatat. Pertama ia mengecek: 
+   "Apakah api_key yang dilampirkan ini benar?".
+5. Jika API Key cocok, PHP membongkar JSON tersebut, lalu menjalankan perintah SQL (INSERT) 
+   untuk menyelipkan data tersebut sebagai satu baris sejarah baru di dalam tabel 
+   `energy_log` pada Database MySQL.
+6. PHP kemudian membalas sapaan (Response) ke ESP32 dengan kode "HTTP 200 OK" (Tanda Sukses). 
+   Seketika itu juga koneksi HTTP ditutup untuk membebaskan RAM/Memori di server.
+
+KEUNGGULAN HTTP PADA SISTEM INI:
+Proses penyetoran data ini mengikuti standar API (Application Programming Interface). 
+Metode *buka-kirim-tutup* ini sangat bersahabat dengan "Shared Hosting" berharga murah, 
+karena tidak menahan koneksi. Pihak penyedia Hosting tidak akan memblokirnya. Database 
+MySQL memastikan jutaan rekaman riwayat listrik Anda tetap aman dan dapat disajikan rapi 
+di menu "Riwayat Data" berkat dukungan paginasi (batasan per 15 baris) lewat HTTP GET.
+
+=========================================================================================
+KESIMPULAN TENTANG SINERGI KEDUANYA (HYBRID ARCHITECTURE)
+=========================================================================================
+- Skenario A (Jika Sistem Hanya Menggunakan HTTP): 
+  Grafik tidak akan bisa bergerak mulus secara *live*. Untuk menyalakan lampu dari jauh, 
+  responnya akan lambat. Selain itu, Anda harus terus me-refresh (*F5*) browser untuk 
+  melihat angka terbaru.
+
+- Skenario B (Jika Sistem Hanya Menggunakan MQTT): 
+  Memang akan sangat responsif, tetapi Anda kehilangan masa lalu. Begitu website ditutup 
+  atau listrik padam, data pemakaian listrik kemarin akan musnah tak berbekas, karena 
+  Broker publik tidak didesain untuk menyimpan data secara permanen layaknya Database.
+
+Dengan Konsep "Hybrid", Izaz Power Monitor sukses mengekstrak KELEBIHAN TERBAIK DARI 
+KEDUA PROTOKOL. Sistem memperoleh "Kecepatan Refleks Kilat" dari MQTT (untuk visualisasi 
+*Dashboard*), sekaligus mendapatkan "Daya Ingat Abadi" dari HTTP & MySQL (untuk fitur 
+Riwayat & Analisa Pemakaian). Inilah mahakarya di balik keandalan proyek ini!
+=========================================================================================

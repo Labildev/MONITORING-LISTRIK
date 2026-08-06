@@ -1,0 +1,140 @@
+=========================================================================================
+                        DOKUMEN CARA KERJA SISTEM (SOP & ALUR)
+                  IZAZ POWER MONITOR - SMART IOT ENERGY PLATFORM
+=========================================================================================
+
+1. PENDAHULUAN
+-----------------------------------------------------------------------------------------
+Sistem "Izaz Power Monitor" adalah sebuah platform Internet of Things (IoT) mutakhir 
+yang dirancang untuk memantau pemakaian listrik secara langsung (real-time) sekaligus 
+memberikan kemampuan kendali jarak jauh (remote control) terhadap beban listrik.
+
+Sistem ini menjembatani dunia fisik (kabel listrik, lampu, mesin) dengan dunia digital 
+(website dashboard), memungkinkan pengguna untuk melihat metrik pemakaian listrik, 
+grafik yang interaktif, dan mematikan/menghidupkan alat dari mana saja, kapan saja, 
+melalui layar komputer atau ponsel pintar.
+
+2. KOMPONEN UTAMA SISTEM
+-----------------------------------------------------------------------------------------
+Sistem ini terdiri dari dua bagian besar: Perangkat Keras (Hardware) di lokasi, dan 
+Perangkat Lunak (Software/Server) di Cloud/Hosting.
+
+[A] Perangkat Keras (Terpasang di lokasi yang dipantau):
+    1. Mikrokontroler ESP32 (Otak Utama): 
+       Sebuah komputer mini yang dilengkapi chip WiFi terintegrasi. Bertugas 
+       mengoordinasikan semua komponen, membaca sensor, memproses logika, dan 
+       menghubungkan perangkat keras ke jaringan internet global.
+    2. Sensor PZEM-004T V3.0 (Mata Sistem): 
+       Sensor listrik presisi tinggi (Industrial Grade) yang dikaitkan ke jalur utama 
+       listrik. Sensor ini secara akurat dan presisi membaca:
+       - Tegangan / Voltage (Volt)
+       - Arus Listrik / Current (Ampere)
+       - Daya Aktif / Active Power (Watt)
+       - Energi Total yang telah digunakan sejak sistem menyala (Kilo Watt Hour / kWh)
+    3. Modul Relay 4-Channel (Tangan Sistem): 
+       Berfungsi sebagai sakelar otomatis (sakelar pintar). Modul ini dapat memutus 
+       atau menyambungkan aliran listrik beban berat ke maksimal 4 sirkuit/alat berbeda 
+       (misal: Lampu Teras, Pompa Air, Kipas Angin, atau AC).
+    4. Layar LCD I2C 16x2 (Indikator Lokal): 
+       Layar informatif yang berada pada kotak panel (di lokasi alat). Menampilkan 
+       ringkasan data listrik secara offline agar teknisi/pengguna di lapangan bisa 
+       langsung melihat status tanpa harus membuka website.
+
+[B] Perangkat Lunak & Server (Berada di Internet):
+    1. Broker MQTT (HiveMQ): 
+       Infrastruktur "jalan tol" super cepat khusus untuk pengiriman pesan singkat. 
+       Memastikan sistem merespons seketika saat tombol ditekan.
+    2. Server Database MySQL: 
+       "Buku catatan digital" terpusat yang merekam seluruh data historis pemakaian 
+       energi ke dalam tabel, dari detik ke detik.
+    3. Website Dashboard Admin (PHP Native & JavaScript): 
+       Antarmuka / layar kontrol eksklusif tempat pengguna mengawasi seluruh sistem, 
+       melihat pergerakan grafik riwayat kelistrikan, menekan tombol kendali, dan 
+       mengubah pengaturan. Dilindungi dengan sistem Login terenkripsi.
+
+3. BAGAIMANA SISTEM BEKERJA? (ALUR DATA LENGKAP)
+-----------------------------------------------------------------------------------------
+Sistem berjalan terus-menerus tanpa henti dengan alur data sebagai berikut:
+
+[TAHAP 1: Pembacaan Kondisi Listrik - Secara Berkesinambungan]
+Mata sistem (Sensor PZEM-004T) secara konstan mengukur aliran listrik AC yang melewati 
+kabel. Setiap ada perubahan beban (misal: TV dinyalakan, sehingga Arus dan Daya naik), 
+sensor akan langsung menangkap nilainya.
+
+[TAHAP 2: Pemrosesan Data di Otak Sistem - Terjadi Setiap 5 Detik]
+Otak sistem (ESP32) memanggil sensor setiap 5 detik untuk mengambil nilai Tegangan, 
+Arus, Daya, dan Energi terbaru. ESP32 kemudian membungkus nilai tersebut beserta 
+informasi status terkini dari keempat Relay (apakah sedang ON atau OFF) ke dalam 
+sebuah format paket data standar global yang rapi (disebut format JSON).
+
+[TAHAP 3: Pengiriman "Jalur Ganda" (Inovasi Arsitektur Krusial)]
+Berbeda dengan sistem IoT pada umumnya, Izaz Power Monitor membagi tugas pengiriman 
+data menjadi DUA jalur terpisah untuk performa dan efisiensi luar biasa:
+  
+   -> JALUR A (Jalur Kilat / MQTT WebSockets): 
+      ESP32 mengirim paket data JSON ke server Broker MQTT. Broker ini bertindak 
+      sebagai megafon, memancarkan (broadcast) data tersebut ke semua perangkat (HP/PC) 
+      yang kebetulan sedang membuka Website Dashboard. 
+      Hasilnya: Metrik dan grafik (Chart.js) di layar komputer pengguna akan bergerak, 
+      naik-turun secara *Live* dan instan, layaknya monitor detak jantung di rumah 
+      sakit, TANPA perlu me-refresh halaman website (No Reload/F5).
+
+   -> JALUR B (Jalur Pencatatan / HTTP POST): 
+      Pada detik yang persis sama, ESP32 juga mengirim paket data tersebut "lewat pintu 
+      belakang" menuju ke Server Database utama di Hosting (via endpoint api/log_data.php). 
+      Tujuannya adalah pencatatan permanen. Data ini kemudian ditumpuk rapi ke dalam 
+      "Gudang Data" (Tabel Database) sebagai riwayat pemakaian (History). Komunikasi ini 
+      diamankan dengan "API Key" rahasia agar orang luar tidak bisa menyuntikkan data palsu.
+
+[TAHAP 4: Visualisasi di Website (Dashboard)]
+Ketika Klien atau Admin membuka website dan berhasil Login:
+- Di menu "Dashboard": Browser secara otomatis membuka koneksi *WebSocket* tersembunyi 
+  (JALUR A) untuk menyedot data langsung dari ESP32 tanpa perantara Database, memberikan 
+  tampilan ultra real-time.
+- Di menu "Riwayat Data": Browser memanggil data dari "Gudang Data" (JALUR B) melalui 
+  API (api/get_history.php). Server akan memproses ribuan baris data, lalu memotong-motongnya 
+  menjadi 15 baris per halaman (sistem Pagination). Hasilnya, walau database berisi 
+  ratusan ribu rekaman, website akan tetap memuat tabel dengan sangat cepat dan enteng.
+
+4. BAGAIMANA CARA KERJA KENDALI JARAK JAUH? (REMOTE CONTROL)
+-----------------------------------------------------------------------------------------
+Sistem dirancang agar pengguna dapat mengendalikan beban (misal mematikan lampu) dari 
+jarak ribuan kilometer dengan aman dan instan:
+1. Pengguna membuka Website Dashboard di ponsel atau laptop.
+2. Pengguna menggeser tombol *Switch* (Toggle) pada kotak "Kendali Beban".
+3. Website seketika meneriakkan pesan perintah via JALUR KILAT MQTT (Misal: perintah 
+   "OFF" ke topik khusus Relay 2).
+4. ESP32 di lokasi, yang senantiasa "berjaga" dan mendengarkan gelombang MQTT 24/7, 
+   menangkap sinyal tersebut dalam waktu hitungan milidetik.
+5. ESP32 memproses perintah dan seketika men-trigger Modul Relay 2 untuk memutus sirkuit. 
+   Beban listrik (lampu) pun seketika padam.
+6. Otomatis ESP32 kembali mengirim pembaruan status (kembali ke Tahap 2 & 3) yang 
+   memicu tombol di layar website pengguna berubah warna menjadi abu-abu (Mati), sebagai 
+   konfirmasi 100% bahwa alat fisik benar-benar telah berhasil dimatikan.
+
+5. KEUNGGULAN UTAMA SISTEM INI (VALUE PROPOSITION)
+-----------------------------------------------------------------------------------------
+Sistem ini tidak hanya dirancang untuk bisa menyala, melainkan dirancang dengan standar 
+pengembangan modern:
+- REAL-TIME NYARIS TANPA JEDA (ZERO LATENCY): Tidak ada lagi sistem kuno di mana Anda 
+  menekan tombol dan harus menunggu 5-10 detik. MQTT membuat respons kendali secepat 
+  Anda menekan tombol di layar sentuh.
+- HYBRID ARCHITECTURE (EFISIENSI BIAYA SERVER): Memisahkan beban *Live Data* ke pihak 
+  ketiga (Broker MQTT Publik/Privat) dan hanya mengandalkan server hosting mandiri untuk 
+  pencatatan teks, membuat sistem ini bisa dipasang di jenis web-hosting paling murah 
+  sekalipun (Shared Hosting biasa), tanpa butuh server VPS jutaan rupiah.
+- KEMAMPUAN CUSTOMISASI DINAMIS: Nama-nama alat listrik (seperti "Mesin Pabrik 1", 
+  "Pemanas Air") dapat diganti kapan saja sesuka hati secara mandiri melalui menu 
+  "Pengaturan" di dalam Dashboard, tanpa perlu harus menyewa programmer untuk memprogram 
+  ulang alat di lapangan.
+- KEAMANAN TERJAMIN (SECURE & ISOLATED): Tidak ada orang asing yang bisa asal masuk. 
+  Antarmuka kendali dan data riwayat terkunci rapat di balik sistem Autentikasi Admin, 
+  dengan metode enkripsi sandi (Password Hashing / bcrypt) berstandar industri.
+
+=========================================================================================
+KESIMPULAN:
+Izaz Power Monitor adalah bukti penerapan teknologi Internet of Things tingkat lanjut yang 
+sangat efisien. Platform ini mensinergikan kestabilan alat ukur tegangan industri (PZEM), 
+kecepatan transmisi komunikasi real-time, dan keandalan rekam jejak digital ke dalam satu 
+kesatuan Dashboard Manajemen Energi yang elegan, mudah digunakan, dan tangguh di lapangan.
+=========================================================================================

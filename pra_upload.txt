@@ -1,0 +1,99 @@
+=========================================================================================
+                      PANDUAN PRA-UPLOAD & DEPLOYMENT (CHECKLIST)
+                  IZAZ POWER MONITOR - SMART IOT ENERGY PLATFORM
+=========================================================================================
+
+Dokumen ini berisi daftar bagian kode (konfigurasi) yang WAJIB Anda ubah atau sesuaikan 
+sebelum proyek ini di-upload ke Hosting (cPanel) dan sebelum program di-flash (upload) 
+ke mikrokontroler ESP32.
+
+Pastikan Anda mengecek satu per satu langkah di bawah ini:
+
+-----------------------------------------------------------------------------------------
+TAHAP 1: PERSIAPAN DATABASE & HOSTING (WEBSITE)
+-----------------------------------------------------------------------------------------
+1. Buat Database MySQL di Hosting
+   - Masuk ke cPanel hosting Anda, cari menu "MySQL Databases".
+   - Buat database baru (misal: `u1234567_izazmonitor`).
+   - Buat User MySQL dan Password baru, lalu hubungkan (Add User to Database) 
+     dengan mencentang "All Privileges".
+
+2. Import Tabel Database
+   - Buka menu phpMyAdmin di cPanel.
+   - Klik/Pilih database yang baru Anda buat tadi.
+   - Pilih menu "Import" dan masukkan file `database.sql` yang ada di dalam folder proyek ini.
+
+3. Konfigurasi File koneksi.php
+   - Buka file `koneksi.php` menggunakan editor teks (di komputer atau cPanel File Manager).
+   - Ubah baris berikut sesuai dengan data database dari cPanel Anda:
+     
+     $host = "localhost";        // Umumnya tetap dibiarkan 'localhost'
+     $user = "root";             // GANTI dengan Username MySQL Hosting Anda
+     $pass = "";                 // GANTI dengan Password MySQL Hosting Anda
+     $db   = "izazmonitor";      // GANTI dengan Nama Database Hosting Anda
+
+4. Upload File Website ke Hosting
+   - Kompres/Zip seluruh file website (seperti index.php, dashboard.php, folder api, folder assets, dll) 
+     KECUALI folder `esp32`.
+   - Upload file zip tersebut ke dalam folder `public_html` di cPanel Anda.
+   - Ekstrak file zip tersebut. 
+   - (Catatan: Pastikan file `index.php` langsung terlihat saat Anda membuka folder `public_html` 
+     agar website bisa langsung terbuka saat nama domain diakses, tanpa harus mengetik nama folder).
+
+-----------------------------------------------------------------------------------------
+TAHAP 2: KONFIGURASI PROGRAM ESP32 (HARDWARE)
+-----------------------------------------------------------------------------------------
+Buka file `esp32/main/main.ino` menggunakan aplikasi Arduino IDE.
+Anda WAJIB menyesuaikan beberapa baris konfigurasi berikut sebelum menekan tombol "Upload" ke ESP32:
+
+1. Konfigurasi Jaringan WiFi
+   Cari baris ke-23 dan sesuaikan dengan nama WiFi (Hotspot) yang ada di lokasi pemasangan alat:
+   
+   const char* ssid     = "NAMA_WIFI_ANDA";     // GANTI dengan nama WiFi/Hotspot
+   const char* password = "PASSWORD_WIFI_ANDA"; // GANTI dengan password WiFi/Hotspot
+
+2. Konfigurasi URL PHP (Endpoint Pencatatan Data ke Database)
+   Cari baris ke-36. Ini SANGAT PENTING agar alat fisik bisa mengirim data pengukuran ke database website Anda.
+   Ubah tulisan 'domain_anda.com' menjadi nama domain website Anda yang sebenarnya:
+   
+   const char* php_server_url = "http://domain_anda.com/api/log_data.php?api_key=labil_secret_123";
+   
+   Contoh JIKA domain Anda adalah www.listrik-pintar.com:
+   const char* php_server_url = "http://www.listrik-pintar.com/api/log_data.php?api_key=labil_secret_123";
+
+3. Konfigurasi Topik MQTT (Sangat Direkomendasikan)
+   Saat ini topik menggunakan kata kunci bawaan "labil_listrik_123". Karena proyek ini menggunakan 
+   broker publik gratis (broker.hivemq.com), sangat disarankan untuk mengganti kata "labil_listrik_123" 
+   dengan kode unik yang rumit agar perintah dari proyek orang lain tidak secara tak sengaja 
+   menghidupkan/mematikan sakelar alat Anda.
+   
+   >> Di file `main.ino` (Baris ke-31 & 32), ubah menjadi misalnya:
+   const char* topic_monitor        = "izaz_pwr_x99y/monitor";
+   const char* topic_control_prefix = "izaz_pwr_x99y/control/relay";
+
+   PENTING! JIKA ANDA MENGUBAH TOPIK INI, Anda JUGA WAJIB mengubahnya di file website `dashboard.php`!
+   >> Buka `dashboard.php`, scroll ke baris 208 dan 209, lalu samakan kata kuncinya:
+   const MQTT_TOPIC_MONITOR = "izaz_pwr_x99y/monitor";
+   const MQTT_TOPIC_CONTROL = "izaz_pwr_x99y/control/relay";
+
+-----------------------------------------------------------------------------------------
+TAHAP 3: PENGUJIAN SETELAH DEPLOYMENT (POST-UPLOAD CHECKLIST)
+-----------------------------------------------------------------------------------------
+1. Nyalakan alat/mikrokontroler ESP32.
+2. Perhatikan layar LCD I2C pada perangkat keras:
+   - Pastikan layar memunculkan tulisan "WiFi Connected!" beserta IP Address lokal.
+   - Pastikan layar memunculkan tulisan "MQTT Connected!".
+3. Buka domain website Anda di browser (misal: www.listrik-pintar.com).
+4. Klik tombol "Login Admin" di beranda dan masuk dengan kredensial bawaan:
+   Username : admin
+   Password : password
+5. Buka menu Dashboard di dalam panel admin, dan lakukan pengecekan berikut:
+   - Indikator status MQTT (pojok kanan atas) harus berwarna hijau dan bertuliskan "Connected".
+   - Angka Tegangan, Arus, dan Daya bergerak/muncul sesuai pembacaan sensor PZEM-004T.
+   - Coba geser tombol (switch) Relay di layar ke posisi ON.
+   - Pastikan terdengar bunyi "klik" nyaring dari modul relay fisik pada perangkat keras Anda, 
+     dan alat listrik yang tersambung pada relay tersebut langsung menyala.
+
+Jika semua tahap di atas sudah dichecklist dengan sukses, maka sistem Izaz Power Monitor 
+Anda sudah resmi "Online" dan siap diserahterimakan kepada Klien!
+=========================================================================================
