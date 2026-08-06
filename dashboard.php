@@ -12,12 +12,15 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Izaz Power Monitor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
     
     <!-- Paho MQTT Client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF & AutoTable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -114,6 +117,21 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
                 <h2 style="margin-bottom: 1.5rem; font-weight: 600;">Riwayat Data Perekaman</h2>
                 
                 <div class="panel">
+                    <div class="filter-bar" style="display: flex; gap: 12px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: flex-end;">
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <label for="filter-start" style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Mulai Tanggal</label>
+                            <input type="date" id="filter-start" style="padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; background: #f9fafb; color: var(--text-main); outline: none;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <label for="filter-end" style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Sampai Tanggal</label>
+                            <input type="date" id="filter-end" style="padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; background: #f9fafb; color: var(--text-main); outline: none;">
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn-primary" onclick="applyHistoryFilter()" style="padding: 11px 20px; border-radius: 8px; font-size: 14px;">Cari</button>
+                            <button class="btn-page" onclick="resetHistoryFilter()" style="padding: 11px 20px; font-size: 14px;">Reset</button>
+                            <button class="btn-page" onclick="exportToPDF()" style="padding: 11px 20px; font-size: 14px; background: #fee2e2; color: #991b1b; border-color: #fecaca; font-weight: 600;">📄 Export PDF</button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="data-table">
                             <thead>
@@ -248,8 +266,8 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+                        x: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
+                        y: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' }, beginAtZero: true }
                     },
                     animation: { duration: 0 }
                 }
@@ -343,8 +361,11 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
             btnNext.disabled = true;
             document.getElementById('history-tbody').innerHTML = `<tr><td colspan="6" style="text-align:center;">Memuat data...</td></tr>`;
 
+            const startDate = document.getElementById('filter-start') ? document.getElementById('filter-start').value : '';
+            const endDate = document.getElementById('filter-end') ? document.getElementById('filter-end').value : '';
+
             try {
-                const res = await fetch(`api/get_history.php?page=${historyCurrentPage}&limit=15`);
+                const res = await fetch(`api/get_history.php?page=${historyCurrentPage}&limit=15&start_date=${startDate}&end_date=${endDate}`);
                 const json = await res.json();
 
                 if (json.success) {
@@ -379,6 +400,71 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 
             btnPrev.disabled = historyCurrentPage <= 1;
             btnNext.disabled = historyCurrentPage >= historyTotalPages;
+        }
+
+        function applyHistoryFilter() {
+            historyCurrentPage = 1;
+            loadHistoryTable(0);
+        }
+
+        function resetHistoryFilter() {
+            if (document.getElementById('filter-start')) document.getElementById('filter-start').value = '';
+            if (document.getElementById('filter-end')) document.getElementById('filter-end').value = '';
+            historyCurrentPage = 1;
+            loadHistoryTable(0);
+        }
+
+        async function exportToPDF() {
+            const startDate = document.getElementById('filter-start') ? document.getElementById('filter-start').value : '';
+            const endDate = document.getElementById('filter-end') ? document.getElementById('filter-end').value : '';
+            
+            try {
+                // Fetch all data matching the filter
+                const res = await fetch(`api/get_history.php?export=true&start_date=${startDate}&end_date=${endDate}`);
+                const json = await res.json();
+                
+                if (json.success) {
+                    if (json.data.length === 0) {
+                        alert("Tidak ada data untuk diexport pada rentang tanggal tersebut.");
+                        return;
+                    }
+                    
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    
+                    doc.text("Laporan Riwayat Pemantauan Listrik (Izaz Power Monitor)", 14, 15);
+                    let subtitle = "Rentang Tanggal: Semua";
+                    if (startDate && endDate) subtitle = `Rentang Tanggal: ${startDate} s/d ${endDate}`;
+                    else if (startDate) subtitle = `Rentang Tanggal: Mulai ${startDate}`;
+                    else if (endDate) subtitle = `Rentang Tanggal: Sampai ${endDate}`;
+                    doc.setFontSize(10);
+                    doc.text(subtitle, 14, 22);
+                    
+                    const tableData = json.data.map((row, index) => [
+                        index + 1,
+                        row.timestamp,
+                        parseFloat(row.tegangan).toFixed(1),
+                        parseFloat(row.arus).toFixed(2),
+                        parseFloat(row.daya).toFixed(1),
+                        parseFloat(row.energi).toFixed(3)
+                    ]);
+                    
+                    doc.autoTable({
+                        startY: 28,
+                        head: [['No', 'Waktu Rekam', 'Tegangan (V)', 'Arus (A)', 'Daya (W)', 'Energi (kWh)']],
+                        body: tableData,
+                        headStyles: { fillColor: [0, 0, 0] },
+                        styles: { fontSize: 9 }
+                    });
+                    
+                    doc.save("Laporan_Pemantauan_Listrik.pdf");
+                } else {
+                    alert("Gagal mengambil data untuk export.");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Kesalahan jaringan saat export PDF.");
+            }
         }
 
 

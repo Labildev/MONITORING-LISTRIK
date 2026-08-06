@@ -1,5 +1,4 @@
-CREATE DATABASE IF NOT EXISTS izazmonitor;
-USE izazmonitor;
+
 
 CREATE TABLE IF NOT EXISTS energy_log (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

@@ -1,0 +1,18 @@
+# 1. Mencegah Directory Listing (Orang tidak bisa melihat daftar file dalam folder)
+Options -Indexes
+
+# 2. Melindungi file sensitif agar tidak bisa diakses/diunduh via browser
+<FilesMatch "\.(sql|md|txt|ini|env|json)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# 3. (Opsional) Memaksa penggunaan HTTPS (Hapus tanda pagar '#' di bawah jika hosting sudah ada SSL/HTTPS)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 4. Melindungi akses ke folder API agar tidak bisa dilisting
+<Directory "api">
+    Options -Indexes
+</Directory>
